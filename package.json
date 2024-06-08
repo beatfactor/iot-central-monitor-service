@@ -1,0 +1,21 @@
+{
+  "name": "iot-central-monitor-service",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "azure-iot-device": "^1.18.3",
+    "azure-iot-device-mqtt": "^1.16.3",
+    "azure-iot-provisioning-device": "^1.9.1",
+    "azure-iot-provisioning-device-mqtt": "^1.8.1",
+    "azure-iot-security-symmetric-key": "^1.8.2",
+    "dotenv": "^16.4.5",
+    "ps-node": "^0.1.6"
+  }
+}
