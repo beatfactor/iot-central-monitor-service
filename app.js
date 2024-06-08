@@ -8,14 +8,14 @@ const Transport = require('azure-iot-device-mqtt').Mqtt;
 const ProvisioningDeviceClient = require('azure-iot-provisioning-device').ProvisioningDeviceClient;
 const SymmetricKeySecurityClient = require('azure-iot-security-symmetric-key').SymmetricKeySecurityClient;
 const ProvisioningTransport = require('azure-iot-provisioning-device-mqtt').Mqtt;
-const ps = require('ps-node');
+const pidusage = require('pidusage');
 
 // Azure IoT Central settings
 const {
   IOT_CENTRAL_SYMMETRIC_KEY,
   IOT_CENTRAL_ID_SCOPE,
   IOT_CENTRAL_REGISTRATION_ID,
-  SCHEDULER_COMMAND
+  PID_FILE_PATH
 } = process.env;
 
 const provisioningHost = 'global.azure-devices-provisioning.net';
@@ -75,32 +75,59 @@ function getIpAddress() {
 
 // Get Dask scheduler status
 function getSchedulerStatus() {
-  return new Promise((resolve) => {
-    ps.lookup({ command: SCHEDULER_COMMAND }, (err, resultList) => {
+  return new Promise((resolve, reject) => {
+    // Read the PID from the specified file
+    fs.readFile(PID_FILE_PATH, 'utf8', (err, pid) => {
       if (err) {
-        throw new Error(err);
-      }
-
-      if (resultList.length > 0) {
-        const proc = resultList[0];
         resolve({
-          status: 'online',
-          pid: proc.pid,
-          cpuPercent: proc.cpu,
-          memoryPercent: proc.memory,
-          statusDetail: proc.state
-        });
-      } else {
-        resolve({
-          status: 'stopped',
+          status: "stopped",
           pid: null,
           cpuPercent: 0.0,
           memoryPercent: 0.0,
-          statusDetail: 'none'
+          statusDetail: "none"
         });
+        return;
       }
+
+      pid = pid.trim();
+
+      // Use pidusage to get CPU and memory usage
+      pidusage(pid, (err, stats) => {
+        if (err) {
+          resolve({
+            status: "stopped",
+            pid: null,
+            cpuPercent: 0.0,
+            memoryPercent: 0.0,
+            statusDetail: "none"
+          });
+          return;
+        }
+
+        resolve({
+          status: "online",
+          pid: pid,
+          cpuPercent: stats.cpu,
+          memoryPercent: stats.memory / 1024 / 1024, // Convert from bytes to MB
+          statusDetail: "running"
+        });
+      });
     });
   });
+}
+
+async function checkStatus() {
+  const schedulerStatus = await getSchedulerStatus();
+  const ipAddress = await getIpAddress();
+  const statusMessage = {
+    ipAddress: ipAddress,
+    [`${SCHEDULER_COMMAND}_status`]: schedulerStatus
+  };
+
+  if (schedulerStatus.status !== previousStatus) {
+    sendMessageToIoTCentral(JSON.stringify(statusMessage));
+    previousStatus = schedulerStatus.status;
+  }
 }
 
 // Main function to initialize clients and monitor Dask scheduler
@@ -112,19 +139,9 @@ async function main() {
       [`${SCHEDULER_COMMAND}_state`]: 'connected'
     }));
 
-    setInterval(async () => {
-      const schedulerStatus = await getSchedulerStatus();
-      const ipAddress = await getIpAddress();
-      const statusMessage = {
-        ipAddress: ipAddress,
-        [`${SCHEDULER_COMMAND}_status`]: schedulerStatus
-      };
+    await checkStatus();
 
-      if (schedulerStatus.status !== previousStatus) {
-        sendMessageToIoTCentral(JSON.stringify(statusMessage));
-        previousStatus = schedulerStatus.status;
-      }
-    }, 60000);
+    setInterval(checkStatus, 60000);
 
   } catch (err) {
     console.error('Error initializing IoT Central client:', err.message);
