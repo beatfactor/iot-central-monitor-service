@@ -1,6 +1,7 @@
 const dotenv = require('dotenv');
 dotenv.config();
 
+const fs = require('fs');
 const { exec } = require('child_process');
 const Client = require('azure-iot-device').ModuleClient;
 const Message = require('azure-iot-device').Message;
@@ -9,6 +10,7 @@ const ProvisioningDeviceClient = require('azure-iot-provisioning-device').Provis
 const SymmetricKeySecurityClient = require('azure-iot-security-symmetric-key').SymmetricKeySecurityClient;
 const ProvisioningTransport = require('azure-iot-provisioning-device-mqtt').Mqtt;
 const pidusage = require('pidusage');
+
 
 // Azure IoT Central settings
 const {
